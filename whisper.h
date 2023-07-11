@@ -444,6 +444,12 @@ extern "C" {
                            const float * samples,
                                    int   n_samples);
 
+    WHISPER_API int whisper_full_parallelized(
+                struct whisper_context * ctx,
+            struct whisper_full_params   params,
+                           const float * samples,
+                                   int   n_samples);
+
     WHISPER_API int whisper_full_with_state(
                 struct whisper_context * ctx,
                   struct whisper_state * state,
