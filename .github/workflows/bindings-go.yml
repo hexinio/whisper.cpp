@@ -10,8 +10,8 @@ on:
       - whisper.h
 
 jobs:
-  ubuntu-latest:
-    runs-on: ubuntu-latest
+  linux:
+    runs-on: [self-hosted, Linux]
     steps:
       - uses: actions/setup-go@v3
         with:

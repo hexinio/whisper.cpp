@@ -4773,7 +4773,10 @@ int whisper_full(
     }
 
     ctx->state = whisper_init_state(ctx);
-    return whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
+    int res = whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
+    whisper_free_state(ctx->state);
+
+    return res;
 }
 
 int whisper_full_parallel(

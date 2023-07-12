@@ -2,8 +2,8 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  ubuntu-latest:
-    runs-on: ubuntu-latest
+  linux:
+    runs-on: [self-hosted, Linux]
 
     steps:
       - name: Clone
@@ -20,25 +20,8 @@ jobs:
           make
           make stream
 
-  macOS-latest:
-    runs-on: macOS-latest
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v1
-
-      - name: Dependencies
-        run: |
-          brew update
-          brew install sdl2
-
-      - name: Build
-        run: |
-          make
-          make stream
-
-  ubuntu-latest-gcc:
-    runs-on: ubuntu-latest
+  linux-gcc:
+    runs-on: [self-hosted, Linux]
 
     strategy:
       matrix:
@@ -63,8 +46,8 @@ jobs:
           make
           ctest -L gh --output-on-failure
 
-  ubuntu-latest-clang:
-    runs-on: ubuntu-latest
+  linux-clang:
+    runs-on: [self-hosted, Linux]
 
     strategy:
       matrix:
@@ -89,8 +72,8 @@ jobs:
           make
           ctest -L gh --output-on-failure
 
-  ubuntu-latest-gcc-sanitized:
-    runs-on: ubuntu-latest
+  linux-gcc-sanitized:
+    runs-on: [self-hosted, Linux]
 
     strategy:
       matrix:
@@ -115,7 +98,7 @@ jobs:
           ctest -L gh --output-on-failure
 
   windows:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
 
     strategy:
       matrix:
@@ -175,7 +158,7 @@ jobs:
           path: build/bin/${{ matrix.build }}
 
   windows-blas:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
 
     strategy:
       matrix:
@@ -245,7 +228,7 @@ jobs:
           path: build/bin/${{ matrix.build }}
           
   windows-cublas:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     
     strategy:
       matrix:
@@ -299,114 +282,3 @@ jobs:
           name: whisper-cublas-bin-${{ matrix.arch }}
           path: build/bin/${{ matrix.build }}
 
-  emscripten:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        build: [Release]
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v1
-
-      - name: Dependencies
-        run: |
-          wget -q https://github.com/emscripten-core/emsdk/archive/master.tar.gz
-          tar -xvf master.tar.gz
-          emsdk-master/emsdk update
-          emsdk-master/emsdk install latest
-          emsdk-master/emsdk activate latest
-
-      - name: Configure
-        run: echo "tmp"
-
-      - name: Build
-        run: |
-          pushd emsdk-master
-          source ./emsdk_env.sh
-          popd
-          emcmake cmake . -DCMAKE_BUILD_TYPE=${{ matrix.build }}
-          make
-
-  ios:
-    runs-on: macos-latest
-
-    strategy:
-      matrix:
-        build: [Release]
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v1
-
-      - name: Configure
-        run: |
-          cp models/for-tests-ggml-base.en.bin models/ggml-base.en.bin
-          mkdir models/ggml-base.en-encoder.mlmodelc
-
-      - name: Build objc example
-        run: xcodebuild -project examples/whisper.objc/whisper.objc.xcodeproj -scheme whisper.objc -configuration ${{ matrix.build }} -sdk iphonesimulator build
-      
-      - name: Build swiftui example
-        run: xcodebuild -project examples/whisper.swiftui/whisper.swiftui.xcodeproj -scheme WhisperCppDemo -configuration ${{ matrix.build }} -sdk iphonesimulator build
-
-  android:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v1
-
-      - name: Install Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: zulu
-          java-version: 17
-      
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-
-      - name: Build
-        run: |
-          cd examples/whisper.android
-          ./gradlew assembleRelease --no-daemon
-
-  java:
-    needs: [ 'windows' ]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v1
-
-      - name: Install Java
-        uses: actions/setup-java@v1
-        with:
-          java-version: 17
-
-      - name: Download Windows lib
-        uses: actions/download-artifact@v3
-        with:
-          name: win32-x86-64_whisper.dll
-          path: bindings/java/build/generated/resources/main/win32-x86-64
-
-      - name: Build
-        run: |
-          models\download-ggml-model.cmd tiny.en
-          cd bindings/java
-          chmod +x ./gradlew
-          ./gradlew build
-
-      - name: Upload jar
-        uses: actions/upload-artifact@v3
-        with:
-          name: whispercpp.jar
-          path: bindings/java/build/libs/whispercpp-*.jar
-
-#      - name: Publish package
-#        if: ${{ github.ref == 'refs/heads/master' }}
-#        uses: gradle/gradle-build-action@v2
-#        with:
-#          arguments: publish
-#        env:
-#          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-#          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}

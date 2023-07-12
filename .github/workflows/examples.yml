@@ -10,8 +10,8 @@ on:
       - whisper.h
 
 jobs:
-  addon_node-ubuntu-latest:
-    runs-on: ubuntu-latest
+  addon_node-linux:
+    runs-on: [self-hosted, Linux]
     strategy:
       matrix:
         node-version: [ 16.x, 18.x ]
