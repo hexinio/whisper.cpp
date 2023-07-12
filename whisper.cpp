@@ -4644,7 +4644,23 @@ int whisper_full(
     struct whisper_full_params   params,
                    const float * samples,
                            int   n_samples) {
-    return whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
+    auto & model = ctx->model;
+
+    struct ggml_init_params ggmlParams{};
+    ggmlParams.mem_size   = model.buf->size();
+    ggmlParams.mem_buffer = model.buf->data();
+
+    model.ctx = ggml_init(ggmlParams);
+    if (!model.ctx) {
+        fprintf(stderr, "%s: ggml_init() failed\n", __func__);
+        return false;
+    }
+
+    ctx->state = whisper_init_state(ctx);
+    int res = whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
+    whisper_free_state(ctx->state);
+
+    return res;
 }
 
 int whisper_full_parallel(
