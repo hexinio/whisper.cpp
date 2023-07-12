@@ -4763,29 +4763,6 @@ int whisper_full(
     return whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
 }
 
-
-int whisper_full_parallelized(
-        struct whisper_context * ctx,
-    struct whisper_full_params   params,
-                   const float * samples,
-                           int   n_samples) {
-    whisper_state* init_state = whisper_init_state(ctx);
-
-    auto params_cur = params;
-
-    params_cur.offset_ms = 0;
-    params_cur.print_progress = false;
-    params_cur.print_realtime = false;
-
-    params_cur.new_segment_callback = nullptr;
-    params_cur.new_segment_callback_user_data = nullptr;
-
-    params_cur.progress_callback = nullptr;
-    params_cur.progress_callback_user_data = nullptr;
-
-    return whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
-}
-
 int whisper_full_parallel(
         struct whisper_context * ctx,
         struct whisper_full_params params,
