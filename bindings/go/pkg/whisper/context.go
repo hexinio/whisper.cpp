@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// Bindings
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go"
+	whisper "github.com/hexinio/whisper.cpp/bindings/go"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
