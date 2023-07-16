@@ -32,7 +32,7 @@ func newContext(model *model, params whisper.Params) (Context, error) {
 	context := new(context)
 	context.model = model
 	context.params = params
-	context.state = C.whisper_create_state(model.ctx)
+	context.state = model.ctx.Whisper_create_state()
 
 	// Return success
 	return context, nil
