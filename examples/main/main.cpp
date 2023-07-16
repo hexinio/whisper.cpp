@@ -778,6 +778,20 @@ bool output_lrc(struct whisper_context * ctx, const char * fname, const whisper_
     return true;
 }
 
+int run(
+        struct whisper_context * ctx,
+        struct whisper_full_params   params,
+        const float* data,
+        int   n_samples) {
+    for(;true;) {
+        int id = whisper_threaded(ctx, params, data, n_samples);
+        if (id == -1) {
+            fprintf(stderr, "failed to process audio");
+            return 10;
+        }
+    }
+}
+
 int main(int argc, char ** argv) {
     whisper_params params;
 
@@ -916,10 +930,11 @@ int main(int argc, char ** argv) {
                 wparams.encoder_begin_callback_user_data = &is_aborted;
             }
 
-            if (whisper_full_parallel(ctx, wparams, pcmf32.data(), pcmf32.size(), params.n_processors) != 0) {
-                fprintf(stderr, "%s: failed to process audio\n", argv[0]);
-                return 10;
-            }
+            std::thread run1 = std::thread(run, ctx, wparams, pcmf32.data(), pcmf32.size());
+            std::thread run2 = std::thread(run, ctx, wparams, pcmf32.data(), pcmf32.size());
+
+            run1.join();
+            run2.join();
         }
 
         // output stuff
@@ -971,7 +986,6 @@ int main(int argc, char ** argv) {
     }
 
     whisper_print_timings(ctx);
-    whisper_free(ctx);
 
     return 0;
 }

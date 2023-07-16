@@ -22,6 +22,7 @@
 #include <vector>
 #include <regex>
 #include <random>
+#include <list>
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
@@ -719,6 +720,9 @@ struct whisper_context {
     whisper_model model;
     whisper_vocab vocab;
     whisper_state * state = nullptr;
+
+    std::map<int, std::unique_ptr<whisper_state>> states;
+    std::mutex states_mutex;
 
     std::string path_model; // populated by whisper_init_from_file()
 };
@@ -1917,7 +1921,7 @@ static bool whisper_decode_internal(
 
     auto & kv_self = decoder.kv_self;
 
-    WHISPER_ASSERT(!!kv_self.ctx);
+    //WHISPER_ASSERT(!!kv_self.ctx);
 
     auto & logits_out = wstate.logits;
 
@@ -2714,7 +2718,7 @@ struct whisper_state * whisper_init_state(whisper_context * ctx) {
     if (!state->ctx_coreml) {
         fprintf(stderr, "%s: failed to load Core ML model from '%s'\n", __func__, path_coreml.c_str());
 #ifndef WHISPER_COREML_ALLOW_FALLBACK
-        return nullptr;
+            return nullptr;
 #endif
     } else {
         fprintf(stderr, "%s: Core ML model loaded\n", __func__);
@@ -4755,28 +4759,47 @@ int whisper_full_with_state(
 }
 
 
-int whisper_full(
+int whisper_threaded(
         struct whisper_context * ctx,
     struct whisper_full_params   params,
                    const float * samples,
                            int   n_samples) {
-    auto & model = ctx->model;
+    auto params_cur = params;
 
-    struct ggml_init_params ggmlParams{};
-    ggmlParams.mem_size   = model.buf->size();
-    ggmlParams.mem_buffer = model.buf->data();
+    params_cur.offset_ms = 0;
+    params_cur.print_progress = false;
+    params_cur.print_realtime = false;
 
-    model.ctx = ggml_init(ggmlParams);
-    if (!model.ctx) {
-        fprintf(stderr, "%s: ggml_init() failed\n", __func__);
-        return false;
+    params_cur.new_segment_callback = nullptr;
+    params_cur.new_segment_callback_user_data = nullptr;
+
+    params_cur.progress_callback = nullptr;
+    params_cur.progress_callback_user_data = nullptr;
+
+    whisper_state* state = whisper_init_state(ctx);
+    int ret = whisper_full_with_state(ctx, state, std::move(params_cur), samples, n_samples);
+    if(ret != 0) {
+        return -1;
     }
 
-    ctx->state = whisper_init_state(ctx);
-    int res = whisper_full_with_state(ctx, ctx->state, params, samples, n_samples);
-    whisper_free_state(ctx->state);
+    const std::lock_guard<std::mutex> lock(ctx->states_mutex);
 
-    return res;
+    int pos = ctx->states.size();
+    ctx->states.insert({pos,std::unique_ptr<whisper_state>(state)});
+
+    return pos;
+}
+
+void whisper_terminate_state(
+        struct whisper_context * ctx,
+                             int index) {
+    auto pos = ctx->states.find(index);
+    if(pos == ctx->states.end()) {
+        return;
+    }
+
+    whisper_state* state = pos->second.get();
+    whisper_free_state(state);
 }
 
 int whisper_full_parallel(
@@ -4786,7 +4809,7 @@ int whisper_full_parallel(
         int n_samples,
         int n_processors) {
     if (n_processors == 1) {
-        return whisper_full(ctx, params, samples, n_samples);
+        return whisper_threaded(ctx, params, samples, n_samples);
     }
     int ret = 0;
 
