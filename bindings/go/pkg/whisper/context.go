@@ -168,7 +168,7 @@ func (context *context) Process(
 		context.params.SetSingleSegment(true)
 	}
 
-	if err := context.model.ctx.Whisper_full(context.params, context.state, data, nil, func(new int) {
+	if err := context.model.ctx.Whisper_full(context.state, context.params, data, nil, func(new int) {
 		if callNewSegment != nil {
 			num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
 			s0 := num_segments - new
