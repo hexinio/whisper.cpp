@@ -168,27 +168,14 @@ func (context *context) Process(
 		context.params.SetSingleSegment(true)
 	}
 
-	// We don't do parallel processing at the moment
-	processors := 0
-	if processors > 1 {
-		if err := context.model.ctx.Whisper_full_parallel(context.params, data, processors, nil, func(new int) {
-			if callNewSegment != nil {
-				num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
-				s0 := num_segments - new
-				for i := s0; i < num_segments; i++ {
-					callNewSegment(toSegment(context.model.ctx, context.state, i))
-				}
-			}
-		}); err != nil {
-			return err
-		}
-	} else if err := context.model.ctx.whisper_full_from_state(context.params, context.state, data, nil, func(new int) {
+	if err := context.model.ctx.Whisper_full(context.params, context.state, data, nil, func(new int) {
 		if callNewSegment != nil {
 			num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
 			s0 := num_segments - new
 			for i := s0; i < num_segments; i++ {
 				callNewSegment(toSegment(context.model.ctx, context.state, i))
 			}
+			context.model.ctx.Whisper_free_state(context.state)
 		}
 	}, func(progress int) {
 		if callProgress != nil {
