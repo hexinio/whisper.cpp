@@ -318,7 +318,7 @@ func (ctx *Context) Whisper_full(
 	encoderBeginCallback func() bool,
 	newSegmentCallback func(int),
 	progressCallback func(int),
-) (int, error) {
+) error {
 	registerEncoderBeginCallback(ctx, encoderBeginCallback)
 	registerNewSegmentCallback(ctx, newSegmentCallback)
 	registerProgressCallback(ctx, progressCallback)
@@ -326,11 +326,10 @@ func (ctx *Context) Whisper_full(
 	defer registerNewSegmentCallback(ctx, nil)
 	defer registerProgressCallback(ctx, nil)
 
-	id := C.whisper_full((*C.struct_whisper_context)(ctx), (*C.struct_whisper_state)(state), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples)))
-	if id != -1 {
-		return id, nil
+	if C.whisper_full((*C.struct_whisper_context)(ctx), (*C.struct_whisper_state)(state), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples))) == 0 {
+		return nil
 	} else {
-		return id, ErrConversionFailed
+		return ErrConversionFailed
 	}
 }
 

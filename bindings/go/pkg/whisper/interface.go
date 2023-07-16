@@ -51,7 +51,7 @@ type Context interface {
 	// Process mono audio data and return any errors.
 	// If defined, newly generated segments are passed to the
 	// callback function during processing.
-	Process([]float32, SegmentCallback, ProgressCallback) (int, error)
+	Process([]float32, SegmentCallback, ProgressCallback) error
 
 	// After process is called, return segments until the end of the stream
 	// is reached, when io.EOF is returned.

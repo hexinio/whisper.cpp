@@ -159,16 +159,30 @@ func (context *context) Process(
 	data []float32,
 	callNewSegment SegmentCallback,
 	callProgress ProgressCallback,
-) (int, error) {
+) error {
 	if context.model.ctx == nil {
-		return -1, ErrInternalAppError
+		return ErrInternalAppError
 	}
 	// If the callback is defined then we force on single_segment mode
 	if callNewSegment != nil {
 		context.params.SetSingleSegment(true)
 	}
 
-	id, err := context.model.ctx.Whisper_full(context.params, context.state, data, nil, func(new int) {
+	// We don't do parallel processing at the moment
+	processors := 0
+	if processors > 1 {
+		if err := context.model.ctx.Whisper_full_parallel(context.params, data, processors, nil, func(new int) {
+			if callNewSegment != nil {
+				num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
+				s0 := num_segments - new
+				for i := s0; i < num_segments; i++ {
+					callNewSegment(toSegment(context.model.ctx, context.state, i))
+				}
+			}
+		}); err != nil {
+			return err
+		}
+	} else if err := context.model.ctx.Whisper_full(context.params, context.state, data, nil, func(new int) {
 		if callNewSegment != nil {
 			num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
 			s0 := num_segments - new
@@ -180,14 +194,12 @@ func (context *context) Process(
 		if callProgress != nil {
 			callProgress(progress)
 		}
-	})
-
-	if err != nil {
-		return -1, err
+	}); err != nil {
+		return err
 	}
 
 	// Return success
-	return id, nil
+	return nil
 }
 
 // Return the next segment of tokens
@@ -197,6 +209,7 @@ func (context *context) NextSegment() (Segment, error) {
 		return Segment{}, ErrInternalAppError
 	}
 	if context.n >= context.model.ctx.Whisper_full_n_segments(context.state) {
+		context.model.ctx.Whisper_free_state(context.state)
 		return Segment{}, io.EOF
 	}
 
