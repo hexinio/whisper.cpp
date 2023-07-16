@@ -435,11 +435,14 @@ extern "C" {
     WHISPER_API struct whisper_full_params * whisper_full_default_params_by_ref(enum whisper_sampling_strategy strategy);
     WHISPER_API struct whisper_full_params whisper_full_default_params(enum whisper_sampling_strategy strategy);
 
+    WHISPER_API struct whisper_state* whisper_create_state(struct whisper_context * ctx);
+
     // Run the entire model: PCM -> log mel spectrogram -> encoder -> decoder -> text
     // Not thread safe for same context
     // Uses the specified decoding strategy to obtain the text.
-    WHISPER_API int whisper_threaded(
+    WHISPER_API int whisper_full_from_state(
                 struct whisper_context * ctx,
+                  struct whisper_state * state,
             struct whisper_full_params   params,
                            const float * samples,
                                    int   n_samples);

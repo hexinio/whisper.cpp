@@ -1,5 +1,6 @@
 package whisper
 
+import "C"
 import (
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ type context struct {
 	n      int
 	model  *model
 	params whisper.Params
+	state  *whisper.State
 }
 
 // Make sure context adheres to the interface
@@ -30,6 +32,7 @@ func newContext(model *model, params whisper.Params) (Context, error) {
 	context := new(context)
 	context.model = model
 	context.params = params
+	context.state = C.whisper_new_state(model.ctx, params.ctx)
 
 	// Return success
 	return context, nil
@@ -156,60 +159,49 @@ func (context *context) Process(
 	data []float32,
 	callNewSegment SegmentCallback,
 	callProgress ProgressCallback,
-) error {
+) (int, error) {
 	if context.model.ctx == nil {
-		return ErrInternalAppError
+		return -1, ErrInternalAppError
 	}
 	// If the callback is defined then we force on single_segment mode
 	if callNewSegment != nil {
 		context.params.SetSingleSegment(true)
 	}
 
-	// We don't do parallel processing at the moment
-	processors := 0
-	if processors > 1 {
-		if err := context.model.ctx.Whisper_full_parallel(context.params, data, processors, nil, func(new int) {
-			if callNewSegment != nil {
-				num_segments := context.model.ctx.Whisper_full_n_segments()
-				s0 := num_segments - new
-				for i := s0; i < num_segments; i++ {
-					callNewSegment(toSegment(context.model.ctx, i))
-				}
-			}
-		}); err != nil {
-			return err
-		}
-	} else if err := context.model.ctx.Whisper_full(context.params, data, nil, func(new int) {
+	id, err := context.model.ctx.Whisper_full(context.params, context.state, data, nil, func(new int) {
 		if callNewSegment != nil {
-			num_segments := context.model.ctx.Whisper_full_n_segments()
+			num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
 			s0 := num_segments - new
 			for i := s0; i < num_segments; i++ {
-				callNewSegment(toSegment(context.model.ctx, i))
+				callNewSegment(toSegment(context.model.ctx, context.state, i))
 			}
 		}
 	}, func(progress int) {
 		if callProgress != nil {
 			callProgress(progress)
 		}
-	}); err != nil {
-		return err
+	})
+
+	if err != nil {
+		return -1, err
 	}
 
 	// Return success
-	return nil
+	return id, nil
 }
 
 // Return the next segment of tokens
 func (context *context) NextSegment() (Segment, error) {
 	if context.model.ctx == nil {
+		context.model.ctx.Whisper_free_state(context.state)
 		return Segment{}, ErrInternalAppError
 	}
-	if context.n >= context.model.ctx.Whisper_full_n_segments() {
+	if context.n >= context.model.ctx.Whisper_full_n_segments(context.state) {
 		return Segment{}, io.EOF
 	}
 
 	// Populate result
-	result := toSegment(context.model.ctx, context.n)
+	result := toSegment(context.model.ctx, context.state, context.n)
 
 	// Increment the cursor
 	context.n++
@@ -280,25 +272,25 @@ func (context *context) IsLANG(t Token, lang string) bool {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func toSegment(ctx *whisper.Context, n int) Segment {
+func toSegment(ctx *whisper.Context, state *whisper.State, n int) Segment {
 	return Segment{
 		Num:    n,
-		Text:   strings.TrimSpace(ctx.Whisper_full_get_segment_text(n)),
-		Start:  time.Duration(ctx.Whisper_full_get_segment_t0(n)) * time.Millisecond * 10,
-		End:    time.Duration(ctx.Whisper_full_get_segment_t1(n)) * time.Millisecond * 10,
-		Tokens: toTokens(ctx, n),
+		Text:   strings.TrimSpace(ctx.Whisper_full_get_segment_text(state, n)),
+		Start:  time.Duration(ctx.Whisper_full_get_segment_t0(state, n)) * time.Millisecond * 10,
+		End:    time.Duration(ctx.Whisper_full_get_segment_t1(state, n)) * time.Millisecond * 10,
+		Tokens: toTokens(ctx, state, n),
 	}
 }
 
-func toTokens(ctx *whisper.Context, n int) []Token {
-	result := make([]Token, ctx.Whisper_full_n_tokens(n))
+func toTokens(ctx *whisper.Context, state *whisper.State, n int) []Token {
+	result := make([]Token, ctx.Whisper_full_n_tokens(state, n))
 	for i := 0; i < len(result); i++ {
-		data := ctx.Whisper_full_get_token_data(n, i)
+		data := ctx.Whisper_full_get_token_data(state, n, i)
 
 		result[i] = Token{
-			Id:    int(ctx.Whisper_full_get_token_id(n, i)),
-			Text:  ctx.Whisper_full_get_token_text(n, i),
-			P:     ctx.Whisper_full_get_token_p(n, i),
+			Id:    int(ctx.Whisper_full_get_token_id(state, n, i)),
+			Text:  ctx.Whisper_full_get_token_text(state, n, i),
+			P:     ctx.Whisper_full_get_token_p(state, n, i),
 			Start: time.Duration(data.T0()) * time.Millisecond * 10,
 			End:   time.Duration(data.T1()) * time.Millisecond * 10,
 		}

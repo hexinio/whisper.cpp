@@ -784,7 +784,8 @@ int run(
         const float* data,
         int   n_samples) {
     for(;true;) {
-        int id = whisper_threaded(ctx, params, data, n_samples);
+        whisper_state * state = whisper_create_state(ctx);
+        int id = whisper_full_from_state(ctx, state, params, data, n_samples);
         if (id == -1) {
             fprintf(stderr, "failed to process audio");
             return 10;

@@ -69,6 +69,7 @@ type (
 	TokenData        C.struct_whisper_token_data
 	SamplingStrategy C.enum_whisper_sampling_strategy
 	Params           C.struct_whisper_full_params
+	State            C.struct_whisper_state
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -300,41 +301,36 @@ func (ctx *Context) Whisper_full_default_params(strategy SamplingStrategy) Param
 	return Params(C.whisper_full_default_params_cb((*C.struct_whisper_context)(ctx), C.enum_whisper_sampling_strategy(strategy)))
 }
 
+func (ctx *Context) Whisper_create_state() *State {
+	return (*State)(C.whisper_create_state((*C.struct_whisper_context)(ctx)))
+}
+
+func (ctx *Context) Whisper_free_state(state *State) {
+	C.whisper_free_state((*C.struct_whisper_state)(state))
+}
+
 // Run the entire model: PCM -> log mel spectrogram -> encoder -> decoder -> text
 // Uses the specified decoding strategy to obtain the text.
 func (ctx *Context) Whisper_full(
+	state *State,
 	params Params,
 	samples []float32,
 	encoderBeginCallback func() bool,
 	newSegmentCallback func(int),
 	progressCallback func(int),
-) error {
+) (int, error) {
 	registerEncoderBeginCallback(ctx, encoderBeginCallback)
 	registerNewSegmentCallback(ctx, newSegmentCallback)
 	registerProgressCallback(ctx, progressCallback)
 	defer registerEncoderBeginCallback(ctx, nil)
 	defer registerNewSegmentCallback(ctx, nil)
 	defer registerProgressCallback(ctx, nil)
-	if C.whisper_full((*C.struct_whisper_context)(ctx), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples))) == 0 {
-		return nil
-	} else {
-		return ErrConversionFailed
-	}
-}
 
-// Split the input audio in chunks and process each chunk separately using whisper_full()
-// It seems this approach can offer some speedup in some cases.
-// However, the transcription accuracy can be worse at the beginning and end of each chunk.
-func (ctx *Context) Whisper_full_parallel(params Params, samples []float32, processors int, encoderBeginCallback func() bool, newSegmentCallback func(int)) error {
-	registerEncoderBeginCallback(ctx, encoderBeginCallback)
-	registerNewSegmentCallback(ctx, newSegmentCallback)
-	defer registerEncoderBeginCallback(ctx, nil)
-	defer registerNewSegmentCallback(ctx, nil)
-
-	if C.whisper_full_parallel((*C.struct_whisper_context)(ctx), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples)), C.int(processors)) == 0 {
-		return nil
+	id := C.whisper_full((*C.struct_whisper_context)(ctx), (*C.struct_whisper_state)(state), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples)))
+	if id != -1 {
+		return id, nil
 	} else {
-		return ErrConversionFailed
+		return id, ErrConversionFailed
 	}
 }
 
@@ -346,55 +342,55 @@ func (ctx *Context) Whisper_full_parallel(params Params, samples []float32, proc
 //
 //	"de" -> 2
 //	"german" -> 2
-func (ctx *Context) Whisper_full_lang_id() int {
-	return int(C.whisper_full_lang_id((*C.struct_whisper_context)(ctx)))
+func (ctx *Context) Whisper_full_lang_id(state *State) int {
+	return int(C.whisper_full_lang_id_from_state((*C.struct_whisper_state)(state)))
 }
 
 // Number of generated text segments.
 // A segment can be a few words, a sentence, or even a paragraph.
-func (ctx *Context) Whisper_full_n_segments() int {
-	return int(C.whisper_full_n_segments((*C.struct_whisper_context)(ctx)))
+func (ctx *Context) Whisper_full_n_segments(state *State) int {
+	return int(C.whisper_full_n_segments_from_state((*C.struct_whisper_state)(state)))
 }
 
 // Get the start and end time of the specified segment.
-func (ctx *Context) Whisper_full_get_segment_t0(segment int) int64 {
-	return int64(C.whisper_full_get_segment_t0((*C.struct_whisper_context)(ctx), C.int(segment)))
+func (ctx *Context) Whisper_full_get_segment_t0(state *State, segment int) int64 {
+	return int64(C.whisper_full_get_segment_t0_from_state((*C.struct_whisper_state)(state), C.int(segment)))
 }
 
 // Get the start and end time of the specified segment.
-func (ctx *Context) Whisper_full_get_segment_t1(segment int) int64 {
-	return int64(C.whisper_full_get_segment_t1((*C.struct_whisper_context)(ctx), C.int(segment)))
+func (ctx *Context) Whisper_full_get_segment_t1(state *State, segment int) int64 {
+	return int64(C.whisper_full_get_segment_t1_from_state((*C.struct_whisper_state)(state), C.int(segment)))
 }
 
 // Get the text of the specified segment.
-func (ctx *Context) Whisper_full_get_segment_text(segment int) string {
-	return C.GoString(C.whisper_full_get_segment_text((*C.struct_whisper_context)(ctx), C.int(segment)))
+func (ctx *Context) Whisper_full_get_segment_text(state *State, segment int) string {
+	return C.GoString(C.whisper_full_get_segment_text_from_state((*C.struct_whisper_state)(state), C.int(segment)))
 }
 
 // Get number of tokens in the specified segment.
-func (ctx *Context) Whisper_full_n_tokens(segment int) int {
-	return int(C.whisper_full_n_tokens((*C.struct_whisper_context)(ctx), C.int(segment)))
+func (ctx *Context) Whisper_full_n_tokens(state *State, segment int) int {
+	return int(C.whisper_full_n_tokens_from_state((*C.struct_whisper_state)(state), C.int(segment)))
 }
 
 // Get the token text of the specified token index in the specified segment.
-func (ctx *Context) Whisper_full_get_token_text(segment int, token int) string {
-	return C.GoString(C.whisper_full_get_token_text((*C.struct_whisper_context)(ctx), C.int(segment), C.int(token)))
+func (ctx *Context) Whisper_full_get_token_text(state *State, segment int, token int) string {
+	return C.GoString(C.whisper_full_get_token_text_from_state((*C.struct_whisper_context)(ctx), (*C.struct_whisper_state)(state), C.int(segment), C.int(token)))
 }
 
 // Get the token of the specified token index in the specified segment.
-func (ctx *Context) Whisper_full_get_token_id(segment int, token int) Token {
-	return Token(C.whisper_full_get_token_id((*C.struct_whisper_context)(ctx), C.int(segment), C.int(token)))
+func (ctx *Context) Whisper_full_get_token_id(state *State, segment int, token int) Token {
+	return Token(C.whisper_full_get_token_id_from_state((*C.struct_whisper_state)(state), C.int(segment), C.int(token)))
 }
 
 // Get token data for the specified token in the specified segment.
 // This contains probabilities, timestamps, etc.
-func (ctx *Context) Whisper_full_get_token_data(segment int, token int) TokenData {
-	return TokenData(C.whisper_full_get_token_data((*C.struct_whisper_context)(ctx), C.int(segment), C.int(token)))
+func (ctx *Context) Whisper_full_get_token_data(state *State, segment int, token int) TokenData {
+	return TokenData(C.whisper_full_get_token_data_from_state((*C.struct_whisper_state)(state), C.int(segment), C.int(token)))
 }
 
 // Get the probability of the specified token in the specified segment.
-func (ctx *Context) Whisper_full_get_token_p(segment int, token int) float32 {
-	return float32(C.whisper_full_get_token_p((*C.struct_whisper_context)(ctx), C.int(segment), C.int(token)))
+func (ctx *Context) Whisper_full_get_token_p(state *State, segment int, token int) float32 {
+	return float32(C.whisper_full_get_token_p_from_state((*C.struct_whisper_state)(state), C.int(segment), C.int(token)))
 }
 
 ///////////////////////////////////////////////////////////////////////////////

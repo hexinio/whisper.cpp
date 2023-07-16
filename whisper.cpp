@@ -4758,9 +4758,14 @@ int whisper_full_with_state(
     return 0;
 }
 
+struct whisper_state * whisper_create_state(struct whisper_context * ctx) {
+    return whisper_init_state(ctx);
+}
 
-int whisper_threaded(
+
+int whisper_full_from_state(
         struct whisper_context * ctx,
+          struct whisper_state * state,
     struct whisper_full_params   params,
                    const float * samples,
                            int   n_samples) {
@@ -4776,21 +4781,10 @@ int whisper_threaded(
     params_cur.progress_callback = nullptr;
     params_cur.progress_callback_user_data = nullptr;
 
-    whisper_state* state = whisper_init_state(ctx);
-    int ret = whisper_full_with_state(ctx, state, std::move(params_cur), samples, n_samples);
-    if(ret != 0) {
-        return -1;
-    }
-
-    const std::lock_guard<std::mutex> lock(ctx->states_mutex);
-
-    int pos = ctx->states.size();
-    ctx->states.insert({pos,std::unique_ptr<whisper_state>(state)});
-
-    return pos;
+    return whisper_full_with_state(ctx, state, std::move(params_cur), samples, n_samples);
 }
 
-void whisper_terminate_state(
+/*void whisper_terminate_state(
         struct whisper_context * ctx,
                              int index) {
     auto pos = ctx->states.find(index);
@@ -4800,7 +4794,7 @@ void whisper_terminate_state(
 
     whisper_state* state = pos->second.get();
     whisper_free_state(state);
-}
+}*/
 
 int whisper_full_parallel(
         struct whisper_context * ctx,
@@ -4809,7 +4803,8 @@ int whisper_full_parallel(
         int n_samples,
         int n_processors) {
     if (n_processors == 1) {
-        return whisper_threaded(ctx, params, samples, n_samples);
+        whisper_state* state = whisper_create_state(ctx);
+        return whisper_full_from_state(ctx, state, params, samples, n_samples);
     }
     int ret = 0;
 

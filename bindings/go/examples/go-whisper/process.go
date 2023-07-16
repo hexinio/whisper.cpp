@@ -7,8 +7,8 @@ import (
 	"time"
 
 	// Package imports
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	wav "github.com/go-audio/wav"
+	whisper "github.com/hexinio/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 func Process(model whisper.Model, path string, flags *Flags) error {
