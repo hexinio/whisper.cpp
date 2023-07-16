@@ -447,9 +447,11 @@ extern "C" {
                            const float * samples,
                                    int   n_samples);
 
+/*
     WHISPER_API void whisper_terminate_state(
             struct whisper_context * ctx,
                                  int index);
+*/
 
     WHISPER_API int whisper_full_with_state(
                 struct whisper_context * ctx,

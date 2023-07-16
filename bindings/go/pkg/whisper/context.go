@@ -182,7 +182,7 @@ func (context *context) Process(
 		}); err != nil {
 			return err
 		}
-	} else if err := context.model.ctx.Whisper_full(context.params, context.state, data, nil, func(new int) {
+	} else if err := context.model.ctx.whisper_full_from_state(context.params, context.state, data, nil, func(new int) {
 		if callNewSegment != nil {
 			num_segments := context.model.ctx.Whisper_full_n_segments(context.state)
 			s0 := num_segments - new
