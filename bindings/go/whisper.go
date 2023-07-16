@@ -326,7 +326,7 @@ func (ctx *Context) Whisper_full(
 	defer registerNewSegmentCallback(ctx, nil)
 	defer registerProgressCallback(ctx, nil)
 
-	if C.whisper_full((*C.struct_whisper_context)(ctx), (*C.struct_whisper_state)(state), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples))) == 0 {
+	if C.whisper_full_from_state((*C.struct_whisper_context)(ctx), (*C.struct_whisper_state)(state), (C.struct_whisper_full_params)(params), (*C.float)(&samples[0]), C.int(len(samples))) == 0 {
 		return nil
 	} else {
 		return ErrConversionFailed
